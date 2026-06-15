@@ -35,14 +35,23 @@ teste-mobile/
 
 ## 2. Rodar o backend + MySQL
 
+**Opcao A — MySQL via Docker (recomendado):** sobe um MySQL pronto na porta `3307`
+(evita conflito com um MySQL ja existente na 3306). O `backend/.env.example` ja aponta para ele.
+
 ```bash
+# na raiz do monorepo
+docker compose up -d        # sobe o MySQL (porta 3307, user root / senha root)
+
 cd backend
 npm install
-cp .env.example .env        # edite com usuario/senha do seu MySQL
+cp .env.example .env        # ja vem configurado para o Docker da raiz
 npm run migrate             # cria o banco e as tabelas
 npm run seed                # insere empresas e usuarios de teste
 npm run dev                 # sobe a API em http://localhost:3333
 ```
+
+**Opcao B — MySQL proprio:** edite `backend/.env` com seu host/porta/usuario/senha
+e rode `npm run migrate && npm run seed && npm run dev`.
 
 Teste rapido:
 
