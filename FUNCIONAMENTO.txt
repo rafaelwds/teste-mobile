@@ -1,0 +1,249 @@
+==========================================================================
+ TESTE MOBILE - EXPLICACAO COMPLETA DO FUNCIONAMENTO
+==========================================================================
+
+Este documento explica, em portugues simples, como o projeto inteiro
+funciona: o que cada parte faz, como os dados andam entre o app e o
+servidor, e como testar tudo.
+
+--------------------------------------------------------------------------
+ 1. O QUE O PROJETO FAZ
+--------------------------------------------------------------------------
+
+E um aplicativo de lancamentos (registros de COMPRA/VENDA) que funciona
+OFFLINE. O usuario:
+
+  - faz login;
+  - cria registros (tipo, data/hora, descricao e varias fotos);
+  - ve a lista dos registros, mesmo sem internet;
+  - sincroniza com um servidor quando tiver conexao.
+
+Cada usuario pertence a uma EMPRESA e so enxerga os dados da sua empresa.
+
+O projeto e um MONOREPO com duas partes:
+
+  backend/  -> API REST (Node + Express) que guarda os dados no MySQL.
+  mobile/   -> App React Native (Expo SDK 56, bare) com banco local
+               WatermelonDB.
+
+--------------------------------------------------------------------------
+ 2. BANCO DE DADOS (MySQL, no backend)
+--------------------------------------------------------------------------
+
+Quatro tabelas (arquivo: backend/database/schema.sql):
+
+  empresa(id, nome, created_at, updated_at, deleted_at)
+  usuario(id, nome, login UNIQUE, senha[hash], empresa_id, ...datas)
+  registro(id, empresa_id, usuario_id, tipo[COMPRA|VENDA], data_hora,
+           descricao, ...datas)
+  foto_registro(id, registro_id, empresa_id, usuario_id, local_path,
+                remote_url, ...datas)
+
+  - empresa.id e usuario.id sao INT auto incremento.
+  - registro.id e foto_registro.id sao VARCHAR(36): assim o ID gerado no
+    celular (offline) e o mesmo ID usado no servidor.
+  - "deleted_at" faz o soft delete (apaga logicamente, sem remover a linha)
+    - importante para a sincronizacao saber o que foi apagado.
+
+Dados iniciais (backend/database/seed.ts):
+
+  Empresa 1: Alpha LTDA      Empresa 2: Beta LTDA
+  Usuario:  Joao Alpha       Usuario:  Maria Beta
+  login:    joao@alpha.com   login:    maria@beta.com
+  senha:    123456 (hash)    senha:    123456 (hash)
+
+--------------------------------------------------------------------------
+ 3. BACKEND - COMO ESTA ORGANIZADO
+--------------------------------------------------------------------------
+
+  backend/src/
+    config/   env.ts (le o .env), db.ts (pool de conexao MySQL)
+    middleware/ auth.ts (valida o token JWT, descobre o usuario)
+    routes/   auth.routes.ts, sync.routes.ts, uploads.routes.ts
+    services/ auth.service.ts, sync.service.ts (a regra de negocio)
+    utils/    time.ts (converte DATETIME <-> epoch em ms)
+    app.ts    monta o Express; server.ts sobe o servidor.
+
+Endpoints:
+
+  POST /auth/login   -> recebe {login, senha}, confere no MySQL com bcrypt,
+                        devolve {token, user}. A senha NUNCA volta na resposta.
+  GET  /auth/me      -> devolve o usuario do token.
+  GET  /sync/pull    -> manda para o app as mudancas do servidor.
+  POST /sync/push    -> recebe do app os registros/fotos criados offline.
+  POST /uploads/fotos-> recebe a imagem (multipart) e salva em backend/uploads,
+                        devolvendo a URL publica.
+
+Seguranca multi-empresa (o ponto mais importante):
+
+  - O middleware coloca no "token" o id do usuario e o empresa_id.
+  - No PULL, o servidor SO retorna linhas da empresa do token.
+  - No PUSH, o servidor GRAVA empresa_id e usuario_id a partir do token,
+    ignorando qualquer valor que o app mandar. E checa que voce so altera
+    registros da sua propria empresa (funcao assertOwnership).
+  - Resultado: a Alpha nunca ve/edita dados da Beta, e vice-versa.
+
+--------------------------------------------------------------------------
+ 4. MOBILE - COMO ESTA ORGANIZADO
+--------------------------------------------------------------------------
+
+  mobile/app/                 (rotas - Expo Router)
+    _layout.tsx   providers (sessao + gesture handler + safe area)
+    index.tsx     se ja logado -> /registros, senao -> /login
+    login.tsx     tela de login
+    registros.tsx tela principal (lista + formulario)
+
+  mobile/src/
+    config.ts          URL da API (10.0.2.2 no Android, localhost no iOS)
+    database/          WatermelonDB: schema.ts, migrations.ts, models/, index.ts
+    features/auth/      services (login), hooks (contexto de sessao), screens
+    features/registros/ services (criar registro+fotos), hooks (lista e sync),
+                        components (form, item, seletor de foto, data/hora),
+                        screens (tela principal)
+    services/          api.ts (fetch + token), sync.ts (sincronizacao),
+                        network.ts (NetInfo)
+    storage/           sessionStorage.ts (sessao no AsyncStorage)
+    utils/             format.ts (formatar data)
+
+Por que "bare workflow" e nao Expo Go?
+
+  O WatermelonDB e um modulo NATIVO. Por isso o projeto tem as pastas
+  android/ e ios/ (geradas por "expo prebuild") e roda com um build de
+  desenvolvimento (npm run android / npm run ios). O Expo Go nao funciona.
+
+--------------------------------------------------------------------------
+ 5. WATERMELONDB (banco local do app)
+--------------------------------------------------------------------------
+
+  - Schema (src/database/schema.ts) tem as mesmas 4 tabelas, com nomes de
+    coluna IGUAIS aos que o backend usa no sync (empresa_id, usuario_id,
+    tipo, data_hora, descricao, sync_status, local_path, remote_url...).
+  - Models (src/database/models/*) usam decorators (@field, @date, @relation).
+  - Datas (created_at/updated_at/data_hora) sao numeros (epoch em ms).
+  - O campo "sync_status" (mapeado para a propriedade "syncState") guarda:
+        pending  -> criado/alterado, ainda nao enviado
+        synced   -> ja sincronizado com o servidor
+        error    -> a ultima sincronizacao falhou
+    Esse status aparece na lista de cada registro.
+
+--------------------------------------------------------------------------
+ 6. FLUXO DE LOGIN E SESSAO
+--------------------------------------------------------------------------
+
+  1. Usuario digita login/senha -> app chama POST /auth/login.
+  2. Backend valida no MySQL (bcrypt) e devolve token + user.
+  3. App salva {token, user} no AsyncStorage (storage/sessionStorage.ts) e
+     guarda o token em memoria para os proximos requests (services/api.ts).
+  4. Ao reabrir o app, ele le a sessao salva e PULA o login (vai direto pra
+     tela de registros).
+  5. Botao "Sair" limpa a sessao e o banco local (para nao misturar dados
+     de empresas diferentes no mesmo aparelho).
+
+--------------------------------------------------------------------------
+ 7. CRIAR UM REGISTRO (100% OFFLINE)
+--------------------------------------------------------------------------
+
+  Na tela principal o usuario preenche:
+    - Tipo: Compra/Venda (Picker), salvo como COMPRA/VENDA.
+    - Data e hora: seletor nativo (DateTimePicker).
+    - Descricao: obrigatoria, minimo 10 caracteres.
+    - Fotos: galeria (multiplas) ou camera (expo-image-picker).
+
+  Validacoes acontecem antes de salvar (mensagens amigaveis via Alert).
+
+  Ao salvar (features/registros/services/registroService.ts):
+    - as fotos sao COPIADAS para uma pasta permanente do app
+      (FileSystem.documentDirectory/fotos/), para sobreviver offline;
+    - cria-se o registro no WatermelonDB com sync_status = 'pending';
+    - criam-se as linhas de foto_registro apontando para o registro.
+
+  Nada disso precisa de internet. A lista (que le do WatermelonDB de forma
+  reativa) ja mostra o novo item como "Pendente".
+
+--------------------------------------------------------------------------
+ 8. SINCRONIZACAO (services/sync.ts)
+--------------------------------------------------------------------------
+
+  Disparada pelo botao "Sincronizar" ou automaticamente quando a internet
+  volta (NetInfo). Passos:
+
+  (1) UPLOAD DAS FOTOS
+      Para cada foto sem remote_url, envia o arquivo para POST /uploads/fotos
+      e grava a URL retornada no campo remote_url (local).
+
+  (2) PULL + PUSH (protocolo WatermelonDB - funcao synchronize())
+      PULL:  GET /sync/pull?lastPulledAt=XXXX
+             O backend devolve {changes:{empresas,usuarios,registros,
+             foto_registros:{created,updated,deleted}}, timestamp}.
+             - So traz dados da empresa do usuario.
+             - lastPulledAt vazio => traz os dados iniciais da empresa.
+             - lastPulledAt preenchido => traz so o que mudou depois disso.
+      PUSH:  POST /sync/push com as mudancas locais (registros e fotos).
+             - O backend grava empresa_id/usuario_id pelo token.
+
+  (3) ATUALIZA STATUS
+      Registros que estavam pending/error viram 'synced' (mostra na lista).
+      Se algo falhar, os pendentes viram 'error' e aparece um aviso.
+
+  Observacao: created_at/updated_at/data_hora viajam como numero (epoch ms)
+  e sao convertidos para DATETIME no MySQL (backend/src/utils/time.ts).
+
+--------------------------------------------------------------------------
+ 9. COMO RODAR (RESUMO DOS COMANDOS)
+--------------------------------------------------------------------------
+
+  BACKEND + MYSQL
+    cd backend
+    npm install
+    cp .env.example .env        # editar dados do MySQL
+    npm run migrate             # cria banco + tabelas
+    npm run seed                # cria empresas e usuarios de teste
+    npm run dev                 # sobe a API em http://localhost:3333
+
+  MOBILE
+    cd mobile
+    npm install
+    # ajustar a URL em src/config.ts se for device fisico
+    npm run android             # ou: npm run ios (macOS)
+
+  No iOS, se o "pod install" reclamar da versao do Ruby, instale Ruby >= 2.7
+  (ex.: brew install ruby) e rode: cd ios && pod install
+
+--------------------------------------------------------------------------
+ 10. COMO TESTAR
+--------------------------------------------------------------------------
+
+  LOGIN
+    - joao@alpha.com / 123456  (empresa Alpha)
+    - maria@beta.com / 123456  (empresa Beta)
+
+  OFFLINE
+    1. logar (com internet);
+    2. ativar modo aviao;
+    3. criar registros e anexar fotos -> aparecem como "Pendente".
+
+  SINCRONIZACAO
+    4. desativar modo aviao;
+    5. tocar "Sincronizar" -> fotos sobem, status vira "Sincronizado";
+    6. conferir no MySQL:
+         SELECT * FROM registro;
+         SELECT * FROM foto_registro;
+
+  SEPARACAO POR EMPRESA
+    - logar como Joao, criar e sincronizar;
+    - sair e logar como Maria -> ela nao ve os registros do Joao.
+
+--------------------------------------------------------------------------
+ 11. PONTOS QUE PODERIAM SER MELHORADOS
+--------------------------------------------------------------------------
+
+  - Tela de detalhe/edicao de registro (hoje o foco e criar + listar).
+  - Refresh do token / expiracao tratada com renovacao automatica.
+  - Reduzir/comprimir melhor as imagens antes do upload.
+  - Testes automatizados (unit/integration) no backend e no app.
+  - Fila de sincronizacao com retry/backoff e resolucao de conflitos
+    mais elaborada.
+  - Paginacao no pull para bases grandes.
+  - Indicador visual de progresso por foto durante o upload.
+
+==========================================================================
