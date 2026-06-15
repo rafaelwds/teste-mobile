@@ -29,12 +29,13 @@ O app e o backend conversam pelo protocolo do WatermelonDB. Mudou um lado, mude 
   um passo em `migrations.ts`. Nunca altere o schema sem migration.
 - Ao adicionar/alterar colunas: **incremente a `version`** em `schema.ts` **e** adicione
   um passo em `migrations.ts`.
-- Models usam **decorators legados** — `babel.config.js` tem `@babel/plugin-proposal-decorators`
-  e `tsconfig.json` tem `experimentalDecorators: true`. Nao remover.
-- **Nao use `!` (definite assignment) nos campos dos models** (ex.: use `@field('nome') nome: string`,
-  NAO `nome!: string`). Com o `babel-preset-expo` o transform de TypeScript rejeita campos
-  "definite" que recebem valor via decorator ("Definitely assigned fields cannot be initialized here").
-  Por isso `tsconfig.json` tem `strictPropertyInitialization: false`.
+- **Os models NAO usam decorators** (`@field/@date`). Com o `babel-preset-expo` (SDK 56) os
+  decorators legados do WatermelonDB quebram ("Decorating class property failed" / "Definitely
+  assigned fields..."), e nao da pra ligar `class-properties` em `loose` so para os models
+  (global quebra o RN; `.babelrc`/`overrides` quebram o Metro/expo-router). Por isso os campos
+  sao **getters/setters** que chamam `_getRaw`/`_setRaw` via os helpers em
+  `src/database/models/_raw.ts` — exatamente o que os decorators gerariam. Siga esse padrao
+  ao adicionar campos. `babel.config.js` usa so o preset (sem plugin de decorators).
 - Nao use o nome de propriedade `syncStatus` num Model (ja existe no WatermelonDB).
   Aqui a coluna `sync_status` e mapeada para a propriedade `syncState`.
 - Toda escrita no banco roda dentro de `database.write(async () => { ... })`.
