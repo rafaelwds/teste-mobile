@@ -1,0 +1,23 @@
+# MySQL dedicado ao teste-mobile.
+# A porta 3306 do host ja esta ocupada por outro projeto, entao expomos em 3307.
+# Credenciais batem com backend/.env (DB_PORT=3307, DB_USER=root, DB_PASSWORD=root).
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: teste-mobile-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: teste_mobile
+    ports:
+      - "3307:3306"
+    volumes:
+      - teste_mobile_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  teste_mobile_mysql:
