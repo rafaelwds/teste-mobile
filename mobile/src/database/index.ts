@@ -16,7 +16,7 @@ import Usuario from './models/Usuario';
 const adapter = new SQLiteAdapter({
   schema,
   migrations,
-  jsi: true, // o plugin nativo (@morrowdigital/watermelondb-expo-plugin) habilita o JSI
+  jsi: false, // usa o modulo nativo nozbe_watermelondb por bridge (compativel com RN 0.85 / nova arquitetura)
   dbName: 'testeMobile',
   onSetUpError: (error) => {
     console.error('[watermelondb] Falha ao iniciar o banco local:', error);

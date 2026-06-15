@@ -27,15 +27,22 @@ O app e o backend conversam pelo protocolo do WatermelonDB. Mudou um lado, mude 
 
 - Ao adicionar/alterar colunas: **incremente a `version`** em `schema.ts` **e** adicione
   um passo em `migrations.ts`. Nunca altere o schema sem migration.
+- Ao adicionar/alterar colunas: **incremente a `version`** em `schema.ts` **e** adicione
+  um passo em `migrations.ts`.
 - Models usam **decorators legados** — `babel.config.js` tem `@babel/plugin-proposal-decorators`
   e `tsconfig.json` tem `experimentalDecorators: true`. Nao remover.
+- **Nao use `!` (definite assignment) nos campos dos models** (ex.: use `@field('nome') nome: string`,
+  NAO `nome!: string`). Com o `babel-preset-expo` o transform de TypeScript rejeita campos
+  "definite" que recebem valor via decorator ("Definitely assigned fields cannot be initialized here").
+  Por isso `tsconfig.json` tem `strictPropertyInitialization: false`.
 - Nao use o nome de propriedade `syncStatus` num Model (ja existe no WatermelonDB).
   Aqui a coluna `sync_status` e mapeada para a propriedade `syncState`.
 - Toda escrita no banco roda dentro de `database.write(async () => { ... })`.
 - O setup nativo do WatermelonDB depende de:
-  - `app.json` -> plugin `@morrowdigital/watermelondb-expo-plugin` (habilita JSI).
-  - `react-native.config.js` -> desabilita o autolink do `@nozbe/simdjson` (evita pod duplicado).
-  - adapter com `jsi: true` em `src/database/index.ts`.
+  - `app.json` -> plugin `@morrowdigital/watermelondb-expo-plugin` + Kotlin >= 2.1.20 (em `expo-build-properties`).
+  - `react-native.config.js` -> desabilita o autolink do `@nozbe/simdjson` (evita pod duplicado no iOS).
+  - adapter com `jsi: false` em `src/database/index.ts` (modulo nativo por bridge; compativel com RN 0.85).
+  - `MainApplication.kt` NAO deve importar `JSIModulePackage` (API removida no RN 0.85).
   Nao remova esses itens sem entender o impacto no `pod install` / build Android.
 
 ## Regras para manter o offline

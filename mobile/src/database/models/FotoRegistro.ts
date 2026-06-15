@@ -8,13 +8,13 @@ export default class FotoRegistro extends Model {
 
   static associations = associations(['registros', { type: 'belongs_to', key: 'registro_id' }]);
 
-  @field('registro_id') registroId!: string;
-  @field('empresa_id') empresaId!: number;
-  @field('usuario_id') usuarioId!: number;
+  @field('registro_id') registroId: string;
+  @field('empresa_id') empresaId: number;
+  @field('usuario_id') usuarioId: number;
   @field('local_path') localPath?: string;
   @field('remote_url') remoteUrl?: string;
-  @date('created_at') createdAt!: Date;
-  @date('updated_at') updatedAt!: Date;
+  @date('created_at') createdAt: Date;
+  @date('updated_at') updatedAt: Date;
 
-  @relation('registros', 'registro_id') registro!: Registro;
+  @relation('registros', 'registro_id') registro: Registro;
 }
