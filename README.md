@@ -137,4 +137,5 @@ O backend ignora qualquer `empresa_id` enviado pelo app e usa sempre o do token.
 ## 8. Documentos
 
 - [`FUNCIONAMENTO.txt`](FUNCIONAMENTO.txt) — explicacao completa de como tudo funciona.
+- [`WATERMELONDB.md`](WATERMELONDB.md) — documento tecnico sobre o WatermelonDB e a sincronizacao offline.
 - [`AGENTS.md`](AGENTS.md) — regras para agentes de IA trabalharem no projeto.
