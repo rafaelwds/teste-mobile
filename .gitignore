@@ -10,3 +10,7 @@
 
 # As subpastas backend/ e mobile/ tem seus proprios .gitignore
 # (node_modules, .env, Pods, build, etc).
+
+# Claude Code
+.claude/
+CLAUDE.md
