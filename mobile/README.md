@@ -10,7 +10,8 @@ TypeScript, **WatermelonDB** offline e sincronizacao com o backend.
 
 - Node.js 18+
 - **Android:** Android Studio + um emulador (ou device com depuracao USB)
-- **iOS:** macOS + Xcode + CocoaPods (Ruby >= 2.7)
+- **iOS:** macOS + **Xcode 26.1+** (a SDK 56 usa `weak let`, que exige Swift recente —
+  o Xcode 26.0 falha no build do `expo-modules-jsi`) + CocoaPods (Ruby >= 2.7)
 - O backend rodando (veja `../backend/README.md`)
 
 ## Instalacao
